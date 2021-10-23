@@ -1,3 +1,5 @@
+local updateInterval = 0.1;
+
 local function toAngleLR(heading, fromCoordinate, toCoordinate)
 
   local dir = fromCoordinate:GetDirectionVec3(toCoordinate);
@@ -27,13 +29,13 @@ local function formatDistance(distanceInMeters)
   end
 end
 
-local function getReportAngle(student, instructor)
+local function getAngleAndDist(student, instructor)
   local pFrom = student:GetCoordinate();
   local pTo = instructor:GetCoordinate();
   local dist = pFrom:Get2DDistance(pTo);
   local aspect = toAngleLR(instructor:GetHeading(), pFrom, pTo);
 
-  return aspect, dist
+  return math.floor(aspect), dist
 end
 
 function FormationInstructor(groupName, instructorName, stud1, stud2, stud3, stud4)
@@ -64,15 +66,20 @@ function FormationInstructor(groupName, instructorName, stud1, stud2, stud3, stu
     local report = REPORT:New();
 
     local function fmt(student, number, score)
-      local angle, dist = getReportAngle(student, instructor);
+      local angle, dist = getAngleAndDist(student, instructor);
 
-      local message = string.format('%03d°, %s', angle, formatDistance(dist));
+      local inZone = angle >= 40 and angle <= 50;
+      local inZoneMarker = " <<";
 
-      if (angle >= 40 and angle <= 50) then
-        score.t = score.t + 0.1
+      if (inZone) then
+        score.t = score.t + updateInterval
+        if (math.floor(score.t) % 2 == 0) then
+          inZoneMarker = "";
+        end;
       end
 
-      return string.format("#%d %s: %s, T: %s", number, student:GetPlayer(), message, UTILS.SecondsToClock(score.t, true));
+      local angleDistFmt = string.format('%03d°, %s', angle, formatDistance(dist));
+      return string.format("#%d %s: %s, T: %s%s", number, student:GetPlayer(), angleDistFmt, UTILS.SecondsToClock(score.t, true), inZoneMarker);
     end
 
     if (student1Alive) then
@@ -112,7 +119,7 @@ function FormationInstructor(groupName, instructorName, stud1, stud2, stud3, stu
 
     if (not updateTimer) then
       -- MESSAGE:New("Start timer", 1):ToBlue();
-      updateTimer = TIMER:New(updateStudents):Start(1, 0.1, nil);
+      updateTimer = TIMER:New(updateStudents):Start(1, updateInterval, nil);
     end
   end
 
