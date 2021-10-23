@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "..\\MOOSE_INCLUDE-Moose_autobuild_v2.7.5.105_develop\\Moose_Include_Static"
+		},
+		{
+			"path": "..\\MOOSE_DOCS\\Documentation"
+		}
+	],
+	"settings": {}
+}

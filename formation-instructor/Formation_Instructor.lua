@@ -32,9 +32,8 @@ local function getReportAngle(student, instructor)
   local pTo = instructor:GetCoordinate();
   local dist = pFrom:Get2DDistance(pTo);
   local aspect = toAngleLR(instructor:GetHeading(), pFrom, pTo);
-  local message = string.format('%03d°, %s', aspect, formatDistance(dist));
 
-  return message;
+  return aspect, dist
 end
 
 function FormationInstructor(groupName, instructorName, stud1, stud2, stud3, stud4)
@@ -45,9 +44,14 @@ function FormationInstructor(groupName, instructorName, stud1, stud2, stud3, stu
   local student_3 = CLIENT:FindByName(stud3);
   local student_4 = CLIENT:FindByName(stud4);
 
+  local student_1_score = {t = 0.0};
+  local student_2_score = {t = 0.0};
+  local student_3_score = {t = 0.0};
+  local student_4_score = {t = 0.0};
+
   local updateTimer = nil;
 
-  local function reportStudents()
+  local function updateStudents()
     local student1Alive = student_1:IsAlive();
     local student2Alive = student_2:IsAlive();
     local student3Alive = student_3:IsAlive();
@@ -59,25 +63,41 @@ function FormationInstructor(groupName, instructorName, stud1, stud2, stud3, stu
 
     local report = REPORT:New();
 
-    local function Fmt(student, number)
-      return string.format("#%d %s: %s", number, student:GetPlayer(), getReportAngle(student, instructor));
+    local function fmt(student, number, score)
+      local angle, dist = getReportAngle(student, instructor);
+
+      local message = string.format('%03d°, %s', angle, formatDistance(dist));
+
+      if (angle >= 40 and angle <= 50) then
+        score.t = score.t + 0.1
+      end
+
+      return string.format("#%d %s: %s, T: %s", number, student:GetPlayer(), message, UTILS.SecondsToClock(score.t, true));
     end
 
     if (student1Alive) then
       report:Add("-----");
-      report:Add(Fmt(student_1, 1));
+      report:Add(fmt(student_1, 1, student_1_score));
+    else
+      student_1_score = 0;
     end
     if (student2Alive) then
       report:Add("-----");
-      report:Add(Fmt(student_2, 2));
+      report:Add(fmt(student_2, 2, student_2_score));
+    else
+      student_2_score = 0;
     end
     if (student3Alive) then
       report:Add("-----");
-      report:Add(Fmt(student_3, 3));
+      report:Add(fmt(student_3, 3, student_3_score));
+    else
+      student_3_score = 0;
     end
     if (student4Alive) then
       report:Add("-----");
-      report:Add(Fmt(student_4, 4));
+      report:Add(fmt(student_4, 4, student_4_score));
+    else
+      student_4_score = 0;
     end
 
     MESSAGE:New(report:Text(), 1, nil, true):ToBlue();
@@ -92,7 +112,7 @@ function FormationInstructor(groupName, instructorName, stud1, stud2, stud3, stu
 
     if (not updateTimer) then
       -- MESSAGE:New("Start timer", 1):ToBlue();
-      updateTimer = TIMER:New(reportStudents):Start(1, 0.1, nil);
+      updateTimer = TIMER:New(updateStudents):Start(1, 0.1, nil);
     end
   end
 
