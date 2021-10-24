@@ -33,26 +33,39 @@ end
 -- Formation
 ----------------
 
-Formation = {
-  name = "",
-  description = "",
+Position = {
   angles = {},
-  baseDistanceFT = {}
+  distancesFT = {}
 }
 
-function Formation:New(name, description, angles, baseDistanceFT)
+function Position:New(angles, distancesFT)
   local o = {
-    name = name,
-    description = description,
     angles = angles,
-    baseDistanceFT = baseDistanceFT;
+    distancesFT = distancesFT
   };
 
   setmetatable(o, {__index = self});
   return o;
 end
 
-function Formation:ToSting()
+Formation = {
+  name = "",
+  description = "",
+  poitions = {}
+}
+
+function Formation:New(name, description, positions)
+  local o = {
+    name = name,
+    description = description,
+    positions = positions
+  };
+
+  setmetatable(o, {__index = self});
+  return o;
+end
+
+function Formation:GetDescription()
   return string.format("%s: %s", self.name,  self.description);
 end
 
@@ -75,7 +88,7 @@ function Student:New(client, number)
     number = number,
     client = client,
     angleToInstructor = 0,
-    distanceToInstructor = 0,
+    distanceToInstructorFT = 0,
     formation = nil
   };
 
@@ -96,7 +109,12 @@ function Student:Update(instructor)
 end
 
 function Student:SetFormation(formation)
+  self.score:Reset();
   self.formation = formation;
+end
+
+function Student:GetFormation()
+  return self.formation;
 end
 
 function Student:GetReportLine()
@@ -159,11 +177,12 @@ function Student:calculateAngleAndDist(instructor)
 end
 
 function Student:isInFormation()
+  local position = self.formation.positions[self.number];
   local inSpot
-    = self.angleToInstructor >= self.formation.angles[1]
-      and self.angleToInstructor <= self.formation.angles[2]
-      and self.distanceToInstructorFT >= self.formation.distanceToInstructorFT[1]
-      and self.distanceToInstructorFT <= self.formation.distanceToInstructorFT[2];
+    = self.angleToInstructor >= position.angles[1]
+      and self.angleToInstructor <= position.angles[2]
+      and self.distanceToInstructorFT >= position.distancesFT[1]
+      and self.distanceToInstructorFT <= position.distancesFT[2];
 
   return inSpot;
 end
@@ -173,33 +192,55 @@ end
 ----------------
 
 local formations = {
-  Formation:New("Fingertip", "45° - 75ft separation", {40, 50}, {70, 80}),
-  Formation:New("Route", "45° - 500ft separation", {40, 50}, {520, 620})
+  Formation:New(
+    "Fingertip",
+    "45°, 75ft separation",
+    {
+      [1] = Position:New({40, 50}, {70, 80}),
+      [2] = Position:New({40, 50}, {140, 160}),
+      [3] = Position:New({40, 50}, {70, 80}),
+      [4] = Position:New({40, 50}, {140, 160})
+    }),
+
+  Formation:New(
+    "Route",
+    "45°, 500ft separation",
+    {
+      [1] = Position:New({40, 50}, {480, 520}),
+      [2] = Position:New({40, 50}, {980, 1020}),
+      [3] = Position:New({40, 50}, {480, 520}),
+      [4] = Position:New({40, 50}, {980, 1020})
+    }),
+
+  Formation:New(
+    "Fighting Wing",
+    "60-70°, 500-3000ft separation",
+    {
+      [1] = Position:New({55, 75}, {480, 3020}),
+      [2] = Position:New({55, 75}, {1020, 6020}),
+      [3] = Position:New({55, 75}, {480, 3020}),
+      [4] = Position:New({55, 75}, {1020, 6020})
+    })
 }
 
-function FormationInstructor(groupName, instructorName, stud1, stud2, stud3, stud4)
-  local instructor_group = GROUP:FindByName(groupName);
-  local instructor_unit = UNIT:FindByName(instructorName);
+function FormationInstructor(instructorGroupName, studentGroupName)
+  local instructor_group = GROUP:FindByName(instructorGroupName);
+  local instructor_unit = instructor_group:GetUnits()[1];
 
-  local student_1_client = CLIENT:FindByName(stud1);
-  local student_2_client = CLIENT:FindByName(stud2);
-  local student_3_client = CLIENT:FindByName(stud3);
-  local student_4_client = CLIENT:FindByName(stud4);
+  local student_group = GROUP:FindByName(studentGroupName);
+  local student_clients = student_group:GetUnits();
+
+  local students = {};
 
   local updateTimer = nil;
 
-  local students = {
-    Student:New(student_1_client, 1),
-    Student:New(student_2_client, 2),
-    Student:New(student_3_client, 3),
-    Student:New(student_4_client, 4),
-  };
+  local selectedFormation = formations[1];
 
   local function updateStudents()
     local anyAlive = false;
     local report = REPORT:New();
 
-    report:Add(formations[1]:ToSting());
+    report:Add(selectedFormation:GetDescription());
 
     for i = 1, #students do
       local student = students[i];
@@ -241,8 +282,24 @@ function FormationInstructor(groupName, instructorName, stud1, stud2, stud3, stu
     end
   end
 
-  student_1_client:Alive(function () onStudentJoined(students[1]) end);
-  student_2_client:Alive(function () onStudentJoined(students[2]) end);
-  student_3_client:Alive(function () onStudentJoined(students[3]) end);
-  student_4_client:Alive(function () onStudentJoined(students[4]) end);
+  for i = 1, #student_clients do
+    local student_client = student_group:GetUnit(i):GetClient();
+    local student = Student:New(student_client, i);
+
+    student_client:Alive(function () onStudentJoined(student) end);
+    students[#students + 1] = student;
+  end
+
+  local menu = MENU_GROUP:New(student_group, "Select Formation");
+
+  for i = 1, #formations do
+    local formation = formations[i];
+    MENU_GROUP_COMMAND:New(student_group, formations[i].name, menu, function ()
+      for j = 1, #students do
+        students[j]:SetFormation(formation);
+      end
+      selectedFormation = formation;
+    end);
+  end
+
 end
