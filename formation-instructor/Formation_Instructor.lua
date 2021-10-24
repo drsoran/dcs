@@ -196,30 +196,30 @@ local formations = {
     "Fingertip",
     "45°, 75ft separation",
     {
-      [1] = Position:New({40, 50}, {70, 80}),
-      [2] = Position:New({40, 50}, {140, 160}),
-      [3] = Position:New({40, 50}, {70, 80}),
-      [4] = Position:New({40, 50}, {140, 160})
+      [1] = Position:New({40, 50}, {40, 60}),
+      [2] = Position:New({40, 50}, {90, 110}),
+      [3] = Position:New({40, 50}, {40, 60}),
+      [4] = Position:New({40, 50}, {90, 110})
     }),
 
   Formation:New(
     "Route",
     "45°, 500ft separation",
     {
-      [1] = Position:New({40, 50}, {480, 520}),
-      [2] = Position:New({40, 50}, {980, 1020}),
-      [3] = Position:New({40, 50}, {480, 520}),
-      [4] = Position:New({40, 50}, {980, 1020})
+      [1] = Position:New({40, 50}, {450, 550}),
+      [2] = Position:New({40, 50}, {900, 1100}),
+      [3] = Position:New({40, 50}, {450, 550}),
+      [4] = Position:New({40, 50}, {900, 1100})
     }),
 
   Formation:New(
     "Fighting Wing",
     "60-70°, 500-3000ft separation",
     {
-      [1] = Position:New({55, 75}, {480, 3020}),
-      [2] = Position:New({55, 75}, {1020, 6020}),
-      [3] = Position:New({55, 75}, {480, 3020}),
-      [4] = Position:New({55, 75}, {1020, 6020})
+      [1] = Position:New({55, 75}, {450, 3300}),
+      [2] = Position:New({55, 75}, {900, 6600}),
+      [3] = Position:New({55, 75}, {480, 3300}),
+      [4] = Position:New({55, 75}, {900, 6600})
     })
 }
 
