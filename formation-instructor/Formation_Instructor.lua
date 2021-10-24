@@ -1,5 +1,16 @@
 local updateInterval = 0.1;
 
+
+local sound_wingmen = {
+  [1] = USERSOUND:New("one.ogg"),
+  [2] = USERSOUND:New("two.ogg"),
+  [3] = USERSOUND:New("three.ogg"),
+  [4] = USERSOUND:New("four.ogg")
+}
+
+local sound_inZoneCue
+  = USERSOUND:New("in_spot.ogg");
+
 --------------
 -- Score
 --------------
@@ -118,7 +129,7 @@ function Student:GetFormation()
 end
 
 function Student:GetReportLine()
-  local inZoneMarker = "   ";
+  local inZoneMarker = "    ";
 
   if (self.formation) then
     if (self:isInFormation()) then
@@ -145,7 +156,6 @@ function Student:GetReportLine()
       self.client:GetPlayer(),
       angleDistFmt,
       UTILS.SecondsToClock(self.score:GetSecondsInFormation(), true));
-
 end
 
 function Student:toAngleLR(heading, fromCoordinate, toCoordinate)
@@ -188,6 +198,27 @@ function Student:isInFormation()
 end
 
 ----------------
+-- Instructor
+----------------
+
+Instructor = {
+  unit = nil
+}
+
+function Instructor:New(unit)
+  local o = {
+    unit = unit
+  };
+
+  setmetatable(o, {__index = self});
+  return o;
+end
+
+function Instructor:Update(student)
+  
+end
+
+----------------
 -- Entry
 ----------------
 
@@ -196,7 +227,7 @@ local formations = {
     "Fingertip",
     "45°, 75ft separation",
     {
-      [1] = Position:New({40, 50}, {40, 60}),
+      [1] = Position:New({40, 50}, {40, 60}), -- angle range [°], distance range [ft]
       [2] = Position:New({40, 50}, {90, 110}),
       [3] = Position:New({40, 50}, {40, 60}),
       [4] = Position:New({40, 50}, {90, 110})
@@ -239,6 +270,8 @@ function FormationInstructor(instructorGroupName, studentGroupName)
   local function updateStudents()
     local anyAlive = false;
     local report = REPORT:New();
+
+    -- USERSOUND:New("one.ogg"):ToAll();
 
     report:Add(selectedFormation:GetDescription());
 
