@@ -1,7 +1,136 @@
 local updateInterval = 0.1;
 
-local function toAngleLR(heading, fromCoordinate, toCoordinate)
+--------------
+-- Score
+--------------
 
+Score = {
+  timeInFormation = 0
+}
+
+function Score:New()
+  local o = {
+    timeInFormation = 0
+  };
+
+  setmetatable(o, {__index = self});
+  return o;
+end
+
+function Score:AddSecondsInFormation(seconds)
+  self.timeInFormation = self.timeInFormation + seconds;
+end
+
+function Score:GetSecondsInFormation()
+  return math.floor(self.timeInFormation);
+end
+
+function Score:Reset()
+  self.timeInFormation = 0;
+end
+
+----------------
+-- Formation
+----------------
+
+Formation = {
+  name = "",
+  description = "",
+  angles = {},
+  baseDistanceFT = {}
+}
+
+function Formation:New(name, description, angles, baseDistanceFT)
+  local o = {
+    name = name,
+    description = description,
+    angles = angles,
+    baseDistanceFT = baseDistanceFT;
+  };
+
+  setmetatable(o, {__index = self});
+  return o;
+end
+
+function Formation:ToSting()
+  return string.format("%s: %s", self.name,  self.description);
+end
+
+----------------
+-- Student
+----------------
+
+Student = {
+  score = nil,
+  number = 0,
+  client = nil,
+  angleToInstructor = 0,
+  distanceToInstructorFT = 0,
+  formation = nil
+}
+
+function Student:New(client, number)
+  local o = {
+    score = Score:New(),
+    number = number,
+    client = client,
+    angleToInstructor = 0,
+    distanceToInstructor = 0,
+    formation = nil
+  };
+
+  setmetatable(o, {__index = self});
+  return o;
+end
+
+function Student:IsAlive()
+  return self.client:IsAlive();
+end
+
+function Student:GetScore()
+  return self.score;
+end
+
+function Student:Update(instructor)
+  self:calculateAngleAndDist(instructor);
+end
+
+function Student:SetFormation(formation)
+  self.formation = formation;
+end
+
+function Student:GetReportLine()
+  local inZoneMarker = "   ";
+
+  if (self.formation) then
+    if (self:isInFormation()) then
+      self.score:AddSecondsInFormation(updateInterval);
+      if (self.score:GetSecondsInFormation() % 2 == 0) then
+        inZoneMarker = ">> ";
+      end
+    end
+  end
+
+  local function formatDistance()
+    if (self.distanceToInstructorFT < 6076) then -- 1 NM in ft
+      return string.format('%d FT', self.distanceToInstructorFT);
+    else
+      return string.format('%.2f NM', UTILS.Round(self.distanceToInstructorFT / 6076.12, 2));
+    end
+  end
+
+  local angleDistFmt = string.format('%03d°, %s', self.angleToInstructor, formatDistance());
+
+  return string.format("%s#%d %s: %s, T: %s",
+    inZoneMarker,
+      self.number,
+      self.client:GetPlayer(),
+      angleDistFmt,
+      UTILS.SecondsToClock(self.score:GetSecondsInFormation(), true));
+
+end
+
+function Student:toAngleLR(heading, fromCoordinate, toCoordinate)
   local dir = fromCoordinate:GetDirectionVec3(toCoordinate);
   local angle = fromCoordinate:GetAngleDegrees(dir);
   local aspect = angle - heading;
@@ -21,100 +150,89 @@ local function toAngleLR(heading, fromCoordinate, toCoordinate)
   return aspect;
 end
 
-local function formatDistance(distanceInMeters)
-  if (distanceInMeters < 1852) then -- 1 NM in m
-    return string.format('%d FT', UTILS.Round(UTILS.MetersToFeet(distanceInMeters), 2));
-  else
-    return string.format('%.2f NM', UTILS.Round(UTILS.MetersToNM(distanceInMeters), 2));
-  end
-end
-
-local function getAngleAndDist(student, instructor)
-  local pFrom = student:GetCoordinate();
+function Student:calculateAngleAndDist(instructor)
+  local pFrom = self.client:GetCoordinate();
   local pTo = instructor:GetCoordinate();
-  local dist = pFrom:Get2DDistance(pTo);
-  local aspect = toAngleLR(instructor:GetHeading(), pFrom, pTo);
-
-  return math.floor(aspect), dist
+  self.distanceToInstructorFT = math.floor(UTILS.MetersToFeet(pFrom:Get2DDistance(pTo)));
+  self.distanceToInstructorFT = self.distanceToInstructorFT - 33; -- substract 2 times wingspan half of the Viper (2 * 16ft)
+  self.angleToInstructor = math.floor(self:toAngleLR(instructor:GetHeading(), pFrom, pTo));
 end
+
+function Student:isInFormation()
+  local inSpot
+    = self.angleToInstructor >= self.formation.angles[1]
+      and self.angleToInstructor <= self.formation.angles[2]
+      and self.distanceToInstructorFT >= self.formation.distanceToInstructorFT[1]
+      and self.distanceToInstructorFT <= self.formation.distanceToInstructorFT[2];
+
+  return inSpot;
+end
+
+----------------
+-- Entry
+----------------
+
+local formations = {
+  Formation:New("Fingertip", "45° - 75ft separation", {40, 50}, {70, 80}),
+  Formation:New("Route", "45° - 500ft separation", {40, 50}, {520, 620})
+}
 
 function FormationInstructor(groupName, instructorName, stud1, stud2, stud3, stud4)
-  local instructorGroup = GROUP:FindByName(groupName);
-  local instructor = UNIT:FindByName(instructorName);
-  local student_1 = CLIENT:FindByName(stud1);
-  local student_2 = CLIENT:FindByName(stud2);
-  local student_3 = CLIENT:FindByName(stud3);
-  local student_4 = CLIENT:FindByName(stud4);
+  local instructor_group = GROUP:FindByName(groupName);
+  local instructor_unit = UNIT:FindByName(instructorName);
 
-  local student_1_score = {t = 0.0};
-  local student_2_score = {t = 0.0};
-  local student_3_score = {t = 0.0};
-  local student_4_score = {t = 0.0};
+  local student_1_client = CLIENT:FindByName(stud1);
+  local student_2_client = CLIENT:FindByName(stud2);
+  local student_3_client = CLIENT:FindByName(stud3);
+  local student_4_client = CLIENT:FindByName(stud4);
 
   local updateTimer = nil;
 
+  local students = {
+    Student:New(student_1_client, 1),
+    Student:New(student_2_client, 2),
+    Student:New(student_3_client, 3),
+    Student:New(student_4_client, 4),
+  };
+
   local function updateStudents()
-    local student1Alive = student_1:IsAlive();
-    local student2Alive = student_2:IsAlive();
-    local student3Alive = student_3:IsAlive();
-    local student4Alive = student_4:IsAlive();
-
-    if (not student1Alive and not student2Alive and not student3Alive and not student4Alive) then
-      return;
-    end
-
+    local anyAlive = false;
     local report = REPORT:New();
 
-    local function fmt(student, number, score)
-      local angle, dist = getAngleAndDist(student, instructor);
+    report:Add(formations[1]:ToSting());
 
-      local inZone = angle >= 40 and angle <= 50;
-      local inZoneMarker = " <<";
+    for i = 1, #students do
+      local student = students[i];
 
-      if (inZone) then
-        score.t = score.t + updateInterval
-        if (math.floor(score.t) % 2 == 0) then
-          inZoneMarker = "";
-        end;
+      if (student:IsAlive()) then
+        anyAlive = true;
+        student:Update(instructor_unit);
+        report:Add("-----");
+        report:Add(student:GetReportLine());
+      else
+        student:GetScore():Reset();
+      end
+    end
+
+    if (not anyAlive) then
+      if (updateTimer) then
+        updateTimer:Stop();
+        updateTimer = nil;
       end
 
-      local angleDistFmt = string.format('%03d°, %s', angle, formatDistance(dist));
-      return string.format("#%d %s: %s, T: %s%s", number, student:GetPlayer(), angleDistFmt, UTILS.SecondsToClock(score.t, true), inZoneMarker);
-    end
-
-    if (student1Alive) then
-      report:Add("-----");
-      report:Add(fmt(student_1, 1, student_1_score));
-    else
-      student_1_score = 0;
-    end
-    if (student2Alive) then
-      report:Add("-----");
-      report:Add(fmt(student_2, 2, student_2_score));
-    else
-      student_2_score = 0;
-    end
-    if (student3Alive) then
-      report:Add("-----");
-      report:Add(fmt(student_3, 3, student_3_score));
-    else
-      student_3_score = 0;
-    end
-    if (student4Alive) then
-      report:Add("-----");
-      report:Add(fmt(student_4, 4, student_4_score));
-    else
-      student_4_score = 0;
+      return;
     end
 
     MESSAGE:New(report:Text(), 1, nil, true):ToBlue();
   end
 
-  local function onStudentJoined()
+  local function onStudentJoined(student)
     -- MESSAGE:New("Joined", 1):ToBlue();
 
-    if (not instructorGroup:IsActive()) then
-      instructorGroup:Activate();
+    student:SetFormation(formations[1]);
+
+    if (not instructor_group:IsActive()) then
+      instructor_group:Activate();
     end
 
     if (not updateTimer) then
@@ -123,8 +241,8 @@ function FormationInstructor(groupName, instructorName, stud1, stud2, stud3, stu
     end
   end
 
-  student_1:Alive(onStudentJoined);
-  student_2:Alive(onStudentJoined);
-  student_3:Alive(onStudentJoined);
-  student_4:Alive(onStudentJoined);
+  student_1_client:Alive(function () onStudentJoined(students[1]) end);
+  student_2_client:Alive(function () onStudentJoined(students[2]) end);
+  student_3_client:Alive(function () onStudentJoined(students[3]) end);
+  student_4_client:Alive(function () onStudentJoined(students[4]) end);
 end
