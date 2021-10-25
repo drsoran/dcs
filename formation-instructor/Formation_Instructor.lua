@@ -196,10 +196,10 @@ local formations = {
     "Fingertip",
     "45°, 75ft separation",
     {
-      [1] = Position:New({40, 50}, {70, 80}),
-      [2] = Position:New({40, 50}, {140, 160}),
-      [3] = Position:New({40, 50}, {70, 80}),
-      [4] = Position:New({40, 50}, {140, 160})
+      [1] = Position:New({40, 50}, {0, 30}),
+      [2] = Position:New({40, 50}, {30, 90}),
+      [3] = Position:New({40, 50}, {0, 30}),
+      [4] = Position:New({40, 50}, {30, 90})
     }),
 
   Formation:New(
@@ -214,27 +214,33 @@ local formations = {
 
   Formation:New(
     "Fighting Wing",
-    "60-70°, 500-3000ft separation",
+    "30-70°, 500-3000ft separation",
     {
-      [1] = Position:New({55, 75}, {480, 3020}),
-      [2] = Position:New({55, 75}, {1020, 6020}),
-      [3] = Position:New({55, 75}, {480, 3020}),
-      [4] = Position:New({55, 75}, {1020, 6020})
+      [1] = Position:New({25, 70}, {480, 3020}),
+      [2] = Position:New({25, 70}, {1020, 6020}),
+      [3] = Position:New({25, 70}, {480, 3020}),
+      [4] = Position:New({25, 70}, {1020, 6020})
     })
 }
 
-function FormationInstructor(instructorGroupName, studentGroupName)
+function FormationInstructor(instructorGroupName, stud1, stud2, stud3, stud4)
   local instructor_group = GROUP:FindByName(instructorGroupName);
   local instructor_unit = instructor_group:GetUnits()[1];
 
-  local student_group = GROUP:FindByName(studentGroupName);
-  local student_clients = student_group:GetUnits();
+  local student_clients = {
+    CLIENT:FindByName(stud1),
+    CLIENT:FindByName(stud2),
+    CLIENT:FindByName(stud3),
+    CLIENT:FindByName(stud4),
+  };
 
   local students = {};
 
   local updateTimer = nil;
 
   local selectedFormation = formations[1];
+
+  local menu = nil;
 
   local function updateStudents()
     local anyAlive = false;
@@ -270,6 +276,21 @@ function FormationInstructor(instructorGroupName, studentGroupName)
   local function onStudentJoined(student)
     -- MESSAGE:New("Joined", 1):ToBlue();
 
+    if (not menu) then
+      local group = student.client:GetGroup();
+      menu = MENU_GROUP:New(group, "Select Formation");
+
+      for i = 1, #formations do
+        local formation = formations[i];
+        MENU_GROUP_COMMAND:New(group, formations[i].name, menu, function ()
+          for j = 1, #students do
+            students[j]:SetFormation(formation);
+          end
+          selectedFormation = formation;
+        end);
+      end
+    end
+
     student:SetFormation(formations[1]);
 
     if (not instructor_group:IsActive()) then
@@ -283,23 +304,10 @@ function FormationInstructor(instructorGroupName, studentGroupName)
   end
 
   for i = 1, #student_clients do
-    local student_client = student_group:GetUnit(i):GetClient();
+    local student_client = student_clients[i];
     local student = Student:New(student_client, i);
 
     student_client:Alive(function () onStudentJoined(student) end);
     students[#students + 1] = student;
   end
-
-  local menu = MENU_GROUP:New(student_group, "Select Formation");
-
-  for i = 1, #formations do
-    local formation = formations[i];
-    MENU_GROUP_COMMAND:New(student_group, formations[i].name, menu, function ()
-      for j = 1, #students do
-        students[j]:SetFormation(formation);
-      end
-      selectedFormation = formation;
-    end);
-  end
-
 end
