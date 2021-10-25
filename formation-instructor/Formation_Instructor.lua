@@ -118,7 +118,7 @@ function Student:GetFormation()
 end
 
 function Student:GetReportLine()
-  local inZoneMarker = "   ";
+  local inZoneMarker = "    ";
 
   if (self.formation) then
     if (self:isInFormation()) then
@@ -145,7 +145,6 @@ function Student:GetReportLine()
       self.client:GetPlayer(),
       angleDistFmt,
       UTILS.SecondsToClock(self.score:GetSecondsInFormation(), true));
-
 end
 
 function Student:toAngleLR(heading, fromCoordinate, toCoordinate)
@@ -196,7 +195,7 @@ local formations = {
     "Fingertip",
     "45°, 75ft separation",
     {
-      [1] = Position:New({40, 50}, {0, 30}),
+      [1] = Position:New({40, 50}, {0, 30}), -- angle range [°], distance range [ft]
       [2] = Position:New({40, 50}, {30, 90}),
       [3] = Position:New({40, 50}, {0, 30}),
       [4] = Position:New({40, 50}, {30, 90})
@@ -206,10 +205,10 @@ local formations = {
     "Route",
     "45°, 500ft separation",
     {
-      [1] = Position:New({40, 50}, {480, 520}),
-      [2] = Position:New({40, 50}, {980, 1020}),
-      [3] = Position:New({40, 50}, {480, 520}),
-      [4] = Position:New({40, 50}, {980, 1020})
+      [1] = Position:New({40, 50}, {450, 550}),
+      [2] = Position:New({40, 50}, {900, 1100}),
+      [3] = Position:New({40, 50}, {450, 550}),
+      [4] = Position:New({40, 50}, {900, 1100})
     }),
 
   Formation:New(
@@ -221,7 +220,7 @@ local formations = {
       [3] = Position:New({25, 70}, {480, 3020}),
       [4] = Position:New({25, 70}, {1020, 6020})
     })
-}
+};
 
 function FormationInstructor(instructorGroupName, stud1, stud2, stud3, stud4)
   local instructor_group = GROUP:FindByName(instructorGroupName);
