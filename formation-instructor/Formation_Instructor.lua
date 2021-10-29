@@ -74,6 +74,7 @@ end
 ----------------
 
 Student = {
+  ClassName = "Student",
   score = nil,
   number = 0,
   client = nil,
@@ -83,16 +84,17 @@ Student = {
 }
 
 function Student:New(client, number)
-  local o = {
-    score = Score:New(),
-    number = number,
-    client = client,
-    angleToInstructor = 0,
-    distanceToInstructorFT = 0,
-    formation = nil
-  };
+  local o = BASE:Inherit(self, BASE:New());
 
-  setmetatable(o, {__index = self});
+  o.score = Score:New();
+  o.number = number;
+  o.client = client;
+  o.angleToInstructor = 0;
+  o.distanceToInstructorFT = 0;
+  o.formation = nil;
+
+  -- o:TraceOn();
+
   return o;
 end
 
@@ -147,22 +149,31 @@ function Student:GetReportLine()
       UTILS.SecondsToClock(self.score:GetSecondsInFormation(), true));
 end
 
-function Student:toAngleLR(heading, fromCoordinate, toCoordinate)
-  local dir = fromCoordinate:GetDirectionVec3(toCoordinate);
-  local angle = fromCoordinate:GetAngleDegrees(dir);
-  local aspect = angle - heading;
+function Student:toAngleLR(heading, from, to)
+  local dir = from:GetDirectionVec3(to);
 
-  if aspect > 180 then
-    aspect = aspect - 360;
+  self:T(string.format("Dir: %f, %f, %f", dir.x, dir.y, dir.z));
+  self:T(string.format("Heading: %f", heading));
+
+  local angle = from:GetAngleDegrees(dir);
+  self:T(string.format("angle raw: %f", angle));
+
+  local aspect = angle - heading;
+  self:T(string.format("angle - h: %f", aspect));
+
+  if aspect < -180 then
+    aspect = 360 + aspect;
+  elseif aspect > 180 then
+      aspect = aspect - 360;
   end
 
   if (aspect >= 0 and aspect <= 180) then
-    return 90 - aspect;
+    aspect = 90 - aspect;
+  elseif (aspect < 0 and aspect >= -180) then
+    aspect = 90 + aspect;
   end
 
-  if (aspect < 0 and aspect >= -180) then
-    return 90 + aspect;
-  end
+  self:T(string.format("aspect: %f", aspect));
 
   return aspect;
 end
@@ -219,7 +230,17 @@ local formations = {
       [2] = Position:New({25, 70}, {1020, 6020}),
       [3] = Position:New({25, 70}, {480, 3020}),
       [4] = Position:New({25, 70}, {1020, 6020})
-    })
+    }),
+
+  Formation:New(
+      "Fluid Four",
+      "(-5)-5°, 6000-9000ft separation",
+      {
+        [1] = Position:New({30, 70}, {480, 3020}),
+        [2] = Position:New({30, 70}, {1020, 6020}),
+        [3] = Position:New({-5, 5}, {6000, 9000}),
+        [4] = Position:New({30, 70}, {1020, 6020})
+      })
 };
 
 function FormationInstructor(instructorGroupName, stud1, stud2, stud3, stud4)
@@ -273,8 +294,6 @@ function FormationInstructor(instructorGroupName, stud1, stud2, stud3, stud4)
   end
 
   local function onStudentJoined(student)
-    -- MESSAGE:New("Joined", 1):ToBlue();
-
     if (not menu) then
       local group = student.client:GetGroup();
       menu = MENU_GROUP:New(group, "Select Formation");
@@ -290,16 +309,16 @@ function FormationInstructor(instructorGroupName, stud1, stud2, stud3, stud4)
       end
     end
 
-    student:SetFormation(formations[1]);
-
     if (not instructor_group:IsActive()) then
       instructor_group:Activate();
     end
 
     if (not updateTimer) then
-      -- MESSAGE:New("Start timer", 1):ToBlue();
+      BASE:TraceClassMethod(Student.ClassName, "toAngleLR");
       updateTimer = TIMER:New(updateStudents):Start(1, updateInterval, nil);
     end
+
+    student:SetFormation(formations[1]);
   end
 
   for i = 1, #student_clients do
