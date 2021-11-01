@@ -1,10 +1,11 @@
-local updateInterval = 0.1;
+local UpdateInterval = 0.1;
+local AIFeedbackSeconds = 30;
 
 STTS.DIRECTORY="d:/DCS-SimpleRadio-Standalone";
 
---------------
+--------------------------------------------------------------------------------------------------------------------
 -- Score
---------------
+--------------------------------------------------------------------------------------------------------------------
 
 Score = {
   timeInFormation = 0
@@ -31,9 +32,9 @@ function Score:Reset()
   self.timeInFormation = 0;
 end
 
-----------------
+--------------------------------------------------------------------------------------------------------------------
 -- Formation
-----------------
+--------------------------------------------------------------------------------------------------------------------
 
 Position = {
   angles = {},
@@ -71,9 +72,9 @@ function Formation:GetDescription()
   return string.format("%s: %s", self.name,  self.description);
 end
 
-----------------
+--------------------------------------------------------------------------------------------------------------------
 -- Student
-----------------
+--------------------------------------------------------------------------------------------------------------------
 
 Student = {
   ClassName = "Student",
@@ -127,7 +128,7 @@ function Student:GetReportLine()
 
   if (self.formation) then
     if (self:isInFormation()) then
-      self.score:AddSecondsInFormation(updateInterval);
+      self.score:AddSecondsInFormation(UpdateInterval);
       if (self.score:GetSecondsInFormation() % 2 == 0) then
         inZoneMarker = ">> ";
       end
@@ -214,28 +215,47 @@ function Student:isInFormation()
   return inAngle == 0 and inDistance == 0;
 end
 
-----------------
+--------------------------------------------------------------------------------------------------------------------
 -- InstructorAI
-----------------
+--------------------------------------------------------------------------------------------------------------------
 
 local Vocabulary = {
   ["EnterAhead"] = {
-    [1] = "You are too far ahead, fall back."
+    [1] = "You are too far ahead, fall back.",
+    [2] = "Are you in a hurry? Slow down.",
+    [3] = "This is too far ahead.",
+    [4] = "Slow down.",
   },
   ["Ahead"] = {
-    [1] = "You are still too far ahead."
+    [1] = "You are still too far ahead.",
+    [2] = "Cut power and come back into formation.",
+    [3] = "I want you further back.",
+    [4] = "In which airforce is this a #F?",
+    [5] = "Slow down.",
   },
   ["EnterBehind"] = {
-    [1] = "You are too far behind, close up."
+    [1] = "You are too far behind, close up.",
+    [2] = "You are falling behind.",
+    [3] = "Take your time, we are far from bingo.",
+    [4] = "Close up.",
   },
   ["Behind"] = {
-    [1] = "You are still too far behind."
+    [1] = "You are still too far behind.",
+    [2] = "Add power and come back into formation.",
+    [3] = "I want you further ahead.",
+    [4] = "In which airforce is this a #F?",
+    [5] = "Close up.",
   },
   ["EnterInSpot"] = {
-    [1] = "You are right in spot!"
+    [1] = "You are right in spot!",
+    [2] = "You are in #F.",
+    [3] = "Welcome to #F.",
   },
   ["InSpot"] = {
-    [1] = "You are still in spot! Keep up!"
+    [1] = "You are still in spot! Keep up!",
+    [2] = "Looking good.",
+    [3] = "Nice flying.",
+    [4] = "Beautiful.",
   },
 };
 
@@ -243,8 +263,7 @@ StudentFSM = {
   ClassName = "StudentFSM",
   instructorAi = nil,
   stduent = nil,
-  secondsInSamePositon = 0,
-  feedbackSeconds = 30,
+  secondsInSamePositon = 0
 };
 
 function StudentFSM:New(instructorAi, student)
@@ -274,41 +293,27 @@ function StudentFSM:New(instructorAi, student)
   return o;
 end
 
-function StudentFSM:onenterState(from, event, to)
+function StudentFSM:OnNewFormation()
+  self.secondsInSamePositon = 0;
+end
+
+function StudentFSM:onenterState(from, to)
   self:logTransition(from, to);
   if from == to then
     self.secondsInSamePositon = self.secondsInSamePositon + 1;
+    self.instructorAi:OnStillInState(self.student, to);
   else
-    local stateVocabulary = Vocabulary["Enter" .. to];
-    self.instructorAi:speak(self.student.number, stateVocabulary[1]);
     self.secondsInSamePositon = 0;
+    self.instructorAi:OnEnterState(self.student, to);
   end
 end
 
 function StudentFSM:onenterBehind(from, event, to)
-  self:logTransition(from, to);
-  if from == to then
-    self.secondsInSamePositon = self.secondsInSamePositon + 1;
-    if self.secondsInSamePositon % self.feedbackSeconds == 0 then
-      self.instructorAi:speak(self.student.number, "You are still too far behind.");
-    end
-  else
-    self.instructorAi:speak(self.student.number, "You are too far behind, close up.");
-    self.secondsInSamePositon = 0;
-  end
+  self:onenterState(from, to);
 end
 
 function StudentFSM:onenterAhead(from, event, to)
-  self:logTransition(from, to);
-  if from == to then
-    self.secondsInSamePositon = self.secondsInSamePositon + 1;
-    if self.secondsInSamePositon % self.feedbackSeconds == 0 then
-      self.instructorAi:speak(self.student.number, "You are still too far ahead.");
-    end
-  else
-    self.instructorAi:speak(self.student.number, "You are too far ahead, fall back.");
-    self.secondsInSamePositon = 0;
-  end
+  self:onenterState(from, to);
 end
 
 function StudentFSM:onenterWaitStableInSpot(from, event, to)
@@ -322,19 +327,7 @@ function StudentFSM:onenterWaitStableInSpot(from, event, to)
 end
 
 function StudentFSM:onenterInSpot(from, event, to)
-  self:logTransition(from, to);
-  if event == "IsStable" then
-    self.instructorAi:speak(self.student.number, "You are right in spot!");
-    self.secondsInSamePositon = 0;
-  end
-  if from == to then
-    self.secondsInSamePositon = self.secondsInSamePositon + 1;
-    if self.secondsInSamePositon % self.feedbackSeconds == 0 then
-      self.instructorAi:speak(self.student.number, "You are still in spot! Keep up!");
-    end
-  else
-    self.secondsInSamePositon = 0;
-  end
+  self:onenterState(from, to);
 end
 
 function StudentFSM:onenterDead(from, event, to)
@@ -351,6 +344,8 @@ InstructorAI = {
   students = nil,
   fsms = {},
   formation = nil,
+  cycle = 0,
+  nextStudentForFeedback = 0
 };
 
 function InstructorAI:New(instructor, students)
@@ -370,8 +365,8 @@ function InstructorAI:New(instructor, students)
  end
 
 function InstructorAI:SetFormation(formation)
-  self.formation = formation;
-  local s = string.format(
+  if (self.formation) then
+    local s = string.format(
     "Our formation is %s. Keep an angle between %d and %d degrees and %d to %d feet separation.",
      formation.name,
      formation.positions[1].angles[1],
@@ -379,17 +374,26 @@ function InstructorAI:SetFormation(formation)
      formation.positions[1].distancesFT[1],
      formation.positions[1].distancesFT[2]);
 
-  self:speak(nil, s);
+    self:speak(nil, s);
+  end
+
+  self.formation = formation;
+
+  for i = 1, #self.fsms do
+    self.fsms[i]:OnNewFormation();
+  end
 end
 
 function InstructorAI:Update()
   self:T(string.format("Students: %d", #self.students));
 
+  local aliveStudents = {};
   for i = 1, #self.students do
     local student = self.students[i];
     local fsm = self.fsms[i];
 
     if (student:IsAlive()) then
+      aliveStudents[#aliveStudents+1] = student;
       local angleInd, distanceInd = student:GetAngleAndDistanceIndicators();
       if (angleInd == 0) then
         fsm:IsInSpot();
@@ -402,11 +406,37 @@ function InstructorAI:Update()
       fsm:Dead();
     end
   end
+
+  self.cycle = self.cycle + 1;
+
+  -- We give feedback on formation
+  if self.cycle >= AIFeedbackSeconds then
+    self.nextStudentForFeedback = math.random(#aliveStudents);
+    self.cycle = 0;
+  end
+end
+
+function InstructorAI:OnEnterState(student, state)
+  local stateVocabulary = Vocabulary["Enter" .. state];
+  local number = math.random(#stateVocabulary);
+  self:speak(student.number, stateVocabulary[number]);
+end
+
+function InstructorAI:OnStillInState(student, state)
+  if self.nextStudentForFeedback < 1 then
+    return;
+  end
+
+  local stateVocabulary = Vocabulary[state];
+  local number = math.random(#stateVocabulary);
+  self:speak(student.number, stateVocabulary[number]);
+  self.nextStudentForFeedback = 0;
 end
 
 function InstructorAI:speak(number, message)
   local sentence;
   if (number) then
+    message = message:gsub("#F", self.formation.name);
     sentence = string.format("%d, %s", number, message);
   else
     sentence = string.format("Flight, %s", message);
@@ -415,14 +445,14 @@ function InstructorAI:speak(number, message)
   STTS.TextToSpeech(sentence, "127", "AM", "1.0", self.instructor:GetName(), "0", nil, -5, "male", "en-US");
 end
 
-----------------
+--------------------------------------------------------------------------------------------------------------------
 -- Entry
-----------------
+--------------------------------------------------------------------------------------------------------------------
 
 local formations = {
   Formation:New(
     "Fingertip",
-    "45°, 75ft separation",
+    "45°, 30ft separation",
     {
       [1] = Position:New({40, 50}, {0, 30}), -- angle range [°], distance range [ft]
       [2] = Position:New({40, 50}, {30, 90}),
@@ -540,11 +570,11 @@ function FormationInstructor(instructorGroupName, stud1, stud2, stud3, stud4)
     if (not instructor_group:IsActive()) then
       instructor_group:Activate();
       instructorAI = InstructorAI:New(instructor_unit, students);
-      -- instructorAI:SetFormation(selectedFormation);
+      instructorAI:SetFormation(selectedFormation);
     end
 
     if (not updateTimer) then
-      updateTimer = TIMER:New(updateStudents):Start(1, updateInterval, nil);
+      updateTimer = TIMER:New(updateStudents):Start(1, UpdateInterval, nil);
     end
 
     if (not aiTimer) then
