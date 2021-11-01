@@ -1,5 +1,7 @@
 local updateInterval = 0.1;
 
+STTS.DIRECTORY="d:/DCS-SimpleRadio-Standalone";
+
 --------------
 -- Score
 --------------
@@ -94,6 +96,7 @@ function Student:New(client, number)
   o.formation = nil;
 
   -- o:TraceOn();
+  -- BASE:TraceClassMethod(self.ClassName, "toAngleLR");
 
   return o;
 end
@@ -182,19 +185,234 @@ function Student:calculateAngleAndDist(instructor)
   local pFrom = self.client:GetCoordinate();
   local pTo = instructor:GetCoordinate();
   self.distanceToInstructorFT = math.floor(UTILS.MetersToFeet(pFrom:Get2DDistance(pTo)));
-  self.distanceToInstructorFT = self.distanceToInstructorFT - 33; -- substract 2 times wingspan half of the Viper (2 * 16ft)
+  self.distanceToInstructorFT = self.distanceToInstructorFT - 33; -- substract 2 times wingspan/2 of the Viper (2 * 16ft)
   self.angleToInstructor = math.floor(self:toAngleLR(instructor:GetHeading(), pFrom, pTo));
 end
 
-function Student:isInFormation()
+function Student:GetAngleAndDistanceIndicators()
   local position = self.formation.positions[self.number];
-  local inSpot
-    = self.angleToInstructor >= position.angles[1]
-      and self.angleToInstructor <= position.angles[2]
-      and self.distanceToInstructorFT >= position.distancesFT[1]
-      and self.distanceToInstructorFT <= position.distancesFT[2];
 
-  return inSpot;
+  local angleIndicator = 0;
+  if (self.angleToInstructor < position.angles[1]) then
+    angleIndicator = -1; -- too far ahead
+  elseif (self.angleToInstructor > position.angles[2]) then
+    angleIndicator = 1;  -- too far behind
+  end
+
+  local distanceIndicator = 0;
+  if (self.distanceToInstructorFT < position.distancesFT[1]) then
+    distanceIndicator = -1; -- too close
+  elseif (self.distanceToInstructorFT > position.distancesFT[2]) then
+    distanceIndicator = 1; -- too far out
+  end
+
+  return angleIndicator, distanceIndicator;
+end
+
+function Student:isInFormation()
+  local inAngle, inDistance = self:GetAngleAndDistanceIndicators();
+  return inAngle == 0 and inDistance == 0;
+end
+
+----------------
+-- InstructorAI
+----------------
+
+local Vocabulary = {
+  ["EnterAhead"] = {
+    [1] = "You are too far ahead, fall back."
+  },
+  ["Ahead"] = {
+    [1] = "You are still too far ahead."
+  },
+  ["EnterBehind"] = {
+    [1] = "You are too far behind, close up."
+  },
+  ["Behind"] = {
+    [1] = "You are still too far behind."
+  },
+  ["EnterInSpot"] = {
+    [1] = "You are right in spot!"
+  },
+  ["InSpot"] = {
+    [1] = "You are still in spot! Keep up!"
+  },
+};
+
+StudentFSM = {
+  ClassName = "StudentFSM",
+  instructorAi = nil,
+  stduent = nil,
+  secondsInSamePositon = 0,
+  feedbackSeconds = 30,
+};
+
+function StudentFSM:New(instructorAi, student)
+  local o = BASE:Inherit(self, FSM:New());
+  o.instructorAi = instructorAi;
+  o.student = student;
+
+  o:SetStartState("Idle");
+
+  -- in spot
+  o:AddTransition("Ahead", "IsInSpot", "WaitStableInSpot");
+  o:AddTransition("Behind", "IsInSpot", "WaitStableInSpot");
+  o:AddTransition("WaitStableInSpot", "IsStable", "InSpot");
+  o:AddTransition("WaitStableInSpot", "*", "*");
+  o:AddTransition("InSpot", "IsInSpot", "InSpot");
+
+  -- ahead
+  o:AddTransition("*", "IsAhead", "Ahead");
+
+  -- behind
+  o:AddTransition("*", "IsBehind", "Behind");
+  o:AddTransition("*", "Dead", "End");
+
+  o:TraceOn();
+  BASE:TraceClass(self.ClassName);
+
+  return o;
+end
+
+function StudentFSM:onenterState(from, event, to)
+  self:logTransition(from, to);
+  if from == to then
+    self.secondsInSamePositon = self.secondsInSamePositon + 1;
+  else
+    local stateVocabulary = Vocabulary["Enter" .. to];
+    self.instructorAi:speak(self.student.number, stateVocabulary[1]);
+    self.secondsInSamePositon = 0;
+  end
+end
+
+function StudentFSM:onenterBehind(from, event, to)
+  self:logTransition(from, to);
+  if from == to then
+    self.secondsInSamePositon = self.secondsInSamePositon + 1;
+    if self.secondsInSamePositon % self.feedbackSeconds == 0 then
+      self.instructorAi:speak(self.student.number, "You are still too far behind.");
+    end
+  else
+    self.instructorAi:speak(self.student.number, "You are too far behind, close up.");
+    self.secondsInSamePositon = 0;
+  end
+end
+
+function StudentFSM:onenterAhead(from, event, to)
+  self:logTransition(from, to);
+  if from == to then
+    self.secondsInSamePositon = self.secondsInSamePositon + 1;
+    if self.secondsInSamePositon % self.feedbackSeconds == 0 then
+      self.instructorAi:speak(self.student.number, "You are still too far ahead.");
+    end
+  else
+    self.instructorAi:speak(self.student.number, "You are too far ahead, fall back.");
+    self.secondsInSamePositon = 0;
+  end
+end
+
+function StudentFSM:onenterWaitStableInSpot(from, event, to)
+  self:logTransition(from, to);
+  if from == to then
+    return;
+  end
+
+  self.secondsInSamePositon = 0;
+  self:__IsStable(3);
+end
+
+function StudentFSM:onenterInSpot(from, event, to)
+  self:logTransition(from, to);
+  if event == "IsStable" then
+    self.instructorAi:speak(self.student.number, "You are right in spot!");
+    self.secondsInSamePositon = 0;
+  end
+  if from == to then
+    self.secondsInSamePositon = self.secondsInSamePositon + 1;
+    if self.secondsInSamePositon % self.feedbackSeconds == 0 then
+      self.instructorAi:speak(self.student.number, "You are still in spot! Keep up!");
+    end
+  else
+    self.secondsInSamePositon = 0;
+  end
+end
+
+function StudentFSM:onenterDead(from, event, to)
+  self.secondsInSamePositon = 0;
+end
+
+function StudentFSM:logTransition(from, to)
+  self:T(string.format("%s -> %s", from, to));
+end
+
+InstructorAI = {
+  ClassName = "InstructorAI",
+  instructor = nil,
+  students = nil,
+  fsms = {},
+  formation = nil,
+};
+
+function InstructorAI:New(instructor, students)
+  local o = BASE:Inherit(self, BASE:New());
+  o.instructor = instructor;
+  o.students = students;
+
+  for i = 1, #students do
+    local student = students[i];
+    o.fsms[#o.fsms + 1] = StudentFSM:New(o, student);
+  end
+
+  o:TraceOn();
+  BASE:TraceClass(self.ClassName);
+
+  return o;
+ end
+
+function InstructorAI:SetFormation(formation)
+  self.formation = formation;
+  local s = string.format(
+    "Our formation is %s. Keep an angle between %d and %d degrees and %d to %d feet separation.",
+     formation.name,
+     formation.positions[1].angles[1],
+     formation.positions[1].angles[2],
+     formation.positions[1].distancesFT[1],
+     formation.positions[1].distancesFT[2]);
+
+  self:speak(nil, s);
+end
+
+function InstructorAI:Update()
+  self:T(string.format("Students: %d", #self.students));
+
+  for i = 1, #self.students do
+    local student = self.students[i];
+    local fsm = self.fsms[i];
+
+    if (student:IsAlive()) then
+      local angleInd, distanceInd = student:GetAngleAndDistanceIndicators();
+      if (angleInd == 0) then
+        fsm:IsInSpot();
+      elseif (angleInd < 0) then
+        fsm:IsAhead();
+      elseif (angleInd > 0) then
+        fsm:IsBehind();
+      end
+    else
+      fsm:Dead();
+    end
+  end
+end
+
+function InstructorAI:speak(number, message)
+  local sentence;
+  if (number) then
+    sentence = string.format("%d, %s", number, message);
+  else
+    sentence = string.format("Flight, %s", message);
+  end
+
+  STTS.TextToSpeech(sentence, "127", "AM", "1.0", self.instructor:GetName(), "0", nil, -5, "male", "en-US");
 end
 
 ----------------
@@ -256,7 +474,10 @@ function FormationInstructor(instructorGroupName, stud1, stud2, stud3, stud4)
 
   local students = {};
 
+  local instructorAI = nil;
+
   local updateTimer = nil;
+  local aiTimer = nil;
 
   local selectedFormation = formations[1];
 
@@ -286,7 +507,10 @@ function FormationInstructor(instructorGroupName, stud1, stud2, stud3, stud4)
         updateTimer:Stop();
         updateTimer = nil;
       end
-
+      if (aiTimer) then
+        aiTimer:Stop();
+        aiTimer = nil;
+      end
       return;
     end
 
@@ -300,10 +524,14 @@ function FormationInstructor(instructorGroupName, stud1, stud2, stud3, stud4)
 
       for i = 1, #formations do
         local formation = formations[i];
-        MENU_GROUP_COMMAND:New(group, formations[i].name, menu, function ()
+        MENU_GROUP_COMMAND:New(group, formations[i].name, menu,
+        function ()
+          instructorAI:SetFormation(formation);
+
           for j = 1, #students do
             students[j]:SetFormation(formation);
           end
+
           selectedFormation = formation;
         end);
       end
@@ -311,14 +539,19 @@ function FormationInstructor(instructorGroupName, stud1, stud2, stud3, stud4)
 
     if (not instructor_group:IsActive()) then
       instructor_group:Activate();
+      instructorAI = InstructorAI:New(instructor_unit, students);
+      -- instructorAI:SetFormation(selectedFormation);
     end
 
     if (not updateTimer) then
-      BASE:TraceClassMethod(Student.ClassName, "toAngleLR");
       updateTimer = TIMER:New(updateStudents):Start(1, updateInterval, nil);
     end
 
-    student:SetFormation(formations[1]);
+    if (not aiTimer) then
+      aiTimer = TIMER:New(function () instructorAI:Update() end):Start(1, 1, nil);
+    end
+
+    student:SetFormation(selectedFormation);
   end
 
   for i = 1, #student_clients do
