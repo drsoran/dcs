@@ -204,32 +204,32 @@ end
 local formations = {
   Formation:New(
     "Fingertip",
-    "45°, 75ft separation",
+    "45°, 0-50ft separation",
     {
-      [1] = Position:New({40, 50}, {0, 30}), -- angle range [°], distance range [ft]
-      [2] = Position:New({40, 50}, {30, 90}),
-      [3] = Position:New({40, 50}, {0, 30}),
-      [4] = Position:New({40, 50}, {30, 90})
+      [1] = Position:New({40, 50}, {0, 50}), -- angle range [°], distance range [ft]
+      [2] = Position:New({40, 50}, {50, 100}),
+      [3] = Position:New({40, 50}, {0, 50}),
+      [4] = Position:New({40, 50}, {50, 100})
     }),
 
   Formation:New(
     "Route",
-    "45°, 500ft separation",
+    "45°, 50-500ft separation",
     {
-      [1] = Position:New({40, 50}, {450, 550}),
-      [2] = Position:New({40, 50}, {900, 1100}),
-      [3] = Position:New({40, 50}, {450, 550}),
-      [4] = Position:New({40, 50}, {900, 1100})
+      [1] = Position:New({40, 50}, {30, 500}),
+      [2] = Position:New({40, 50}, {530, 1000}),
+      [3] = Position:New({40, 50}, {30, 500}),
+      [4] = Position:New({40, 50}, {530, 1000})
     }),
 
   Formation:New(
     "Fighting Wing",
     "30-70°, 500-3000ft separation",
     {
-      [1] = Position:New({25, 70}, {480, 3020}),
-      [2] = Position:New({25, 70}, {1020, 6020}),
-      [3] = Position:New({25, 70}, {480, 3020}),
-      [4] = Position:New({25, 70}, {1020, 6020})
+      [1] = Position:New({30, 70}, {480, 3020}),
+      [2] = Position:New({30, 70}, {1020, 6020}),
+      [3] = Position:New({30, 70}, {480, 3020}),
+      [4] = Position:New({30, 70}, {1020, 6020})
     }),
 
   Formation:New(
@@ -244,8 +244,8 @@ local formations = {
 };
 
 function FormationInstructor(instructorGroupName, stud1, stud2, stud3, stud4)
-  local instructor_group = GROUP:FindByName(instructorGroupName);
-  local instructor_unit = instructor_group:GetUnits()[1];
+  local instructor_group = nil;
+  local instructor_unit = nil;
 
   local student_clients = {
     CLIENT:FindByName(stud1),
@@ -287,6 +287,12 @@ function FormationInstructor(instructorGroupName, stud1, stud2, stud3, stud4)
         updateTimer = nil;
       end
 
+      if (instructor_group) then
+        instructor_unit = nil;
+        instructor_group:Destroy(false);
+        instructor_group = nil;
+      end
+
       return;
     end
 
@@ -309,8 +315,9 @@ function FormationInstructor(instructorGroupName, stud1, stud2, stud3, stud4)
       end
     end
 
-    if (not instructor_group:IsActive()) then
-      instructor_group:Activate();
+    if (not instructor_group) then
+      instructor_group = SPAWN:New(instructorGroupName):Spawn();
+      instructor_unit = instructor_group:GetUnits()[1];
     end
 
     if (not updateTimer) then

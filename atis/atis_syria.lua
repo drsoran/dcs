@@ -3,16 +3,11 @@ local atis_airports = {
 }
 
 local function StartATIS()
-    local srsPath = os.getenv("SRS_PATH");
-    if not srsPath then
-        env.error("Could not find environmant variable SRS_PATH, ATIS will not start.");
-        return;
-    end
-
+    env.info("[ATIS]: Starting ATIS for " .. tostring(#atis_airports) .. " airport(s).");
     for i = 1, #atis_airports do
         local ap = atis_airports[i];
         local atis = ATIS:New(ap[1], ap[2]);
-        atis:SetSRS(srsPath, "female", "en-US");
+        atis:SetSRS(SRS_Path, "female", "en-US");
         atis:SetAltimeterQNH(false);
         atis:ReportZuluTimeOnly();
         atis:SetQueueUpdateTime(40);
@@ -20,4 +15,6 @@ local function StartATIS()
     end
 end
 
-StartATIS();
+if TTS_Enabled then
+    StartATIS();
+end
