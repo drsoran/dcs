@@ -47,6 +47,29 @@ function Speak(message, frequency, modulation, after)
     msrs:PlaySoundText(srstext, after or 0);
 end
 
+--- Speaks the given @param message via SRS on the given @frequency
+--- and additonally prints the message text in DCS.
+-- @param message - The message to speak in english.
+-- @param frequency - The frequency of the SRS radio to transmit on.
+-- @return modulation - The modulation to use, AM or FM. Defaults to AM.
+-- @return after - Optional. The delay in seconds until the message is transmitted.
+-- @param sender - Optional. The sender of the message.
+-- Example:
+--
+-- SpeakMsg("FOX 2", 123.45, "AM", 3, "Dodge-1");
+--
+-- Will speak "FOX 2" on SRS frequency 123.45 AM after 3 seconds and additonally
+-- will display "Dodge-1: FOX 2" after 3 seconds in DCS.
+function SpeakMsg(message, frequency, modulation, after, sender)
+    local function sendMessage()
+        local durationInSec = UTILS.Round(string.len(message) / 4, 0);
+        MESSAGE:New((sender or "Mission") .. ": " .. message, durationInSec):ToCoalition(coalition.side.BLUE);
+    end
+
+    TIMER:New(sendMessage):Start((after or 0) + 4); -- 4 sec sample time for TTS.
+    Speak(message, frequency, modulation, after);
+end
+
 -- #endregion
 
 package.path  = package.path..";"..lfs.currentdir().."/LuaSocket/?.lua"
