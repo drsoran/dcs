@@ -3,6 +3,7 @@ SRS_Path = nil;
 
 -- #region Public
 
+--- Airport with active ATIS by map.
 local atis_airports = {
     [DCSMAP.Caucasus] = {
         [1] = { AIRBASE.Caucasus.Batumi, 143.0 }
@@ -19,6 +20,32 @@ local atis_airports = {
         [1] = { AIRBASE.MarianaIslands.Andersen_AFB, 254.325 }
     },
 };
+
+--- Builds a menu with sub menu entries under 'F10 Other' that sets a DCS flag to true.
+-- @param name - The display name of the menu under F10.
+-- @params - A list of menu entries in the format "flag#:name". The flag# must match a DCS flag.
+-- Example:
+--
+-- BuildFlagsMenu("Activate AI", "1:MiG29", "2:SU27", "103:Air Defense");
+--
+-- Will build the following menu structure under F10:
+--
+-- Activate AI
+--   - MiG29        -> sets DCS flag 1 to true when selected
+--   - SU27         -> sets DCS flag 2 to true when selected
+--   - Air Defense  -> sets DCS flag 103 to true when selected
+--
+function BuildFlagsMenu(name, ...)
+    local menu = MENU_MISSION:New(name);
+    for i = 1, #arg do
+        local split = UTILS.Split(arg[i], ":");
+        if #split == 2 and tonumber(split[1]) then
+            MENU_MISSION_COMMAND:New(split[2], menu, function () trigger.action.setUserFlag(split[1], true); end);
+        else
+            env.error("[23rd]: Wrong format in BuildMenu. Expected 'flag#:name'. " .. arg[i]);
+        end
+    end
+end
 
 --- Speaks the given @param message via SRS on the given @frequency
 -- @param message - The message to speak in english.
@@ -63,7 +90,8 @@ end
 function SpeakMsg(message, frequency, modulation, after, sender)
     local function sendMessage()
         local durationInSec = UTILS.Round(string.len(message) / 4, 0);
-        MESSAGE:New((sender or "Mission") .. ": " .. message, durationInSec):ToCoalition(coalition.side.BLUE);
+        local name = sender or (tostring(frequency) .. (modulation or "AM"));
+        MESSAGE:New(name .. ": " .. message, durationInSec):ToCoalition(coalition.side.BLUE);
     end
 
     TIMER:New(sendMessage):Start((after or 0) + 4); -- 4 sec sample time for TTS.
@@ -72,17 +100,17 @@ end
 
 -- #endregion
 
-package.path  = package.path..";"..lfs.currentdir().."/LuaSocket/?.lua"
-package.cpath = package.cpath..";"..lfs.currentdir().."/LuaSocket/?.dll"
-package.path  = package.path..";"..lfs.currentdir().."/Scripts/?.lua"
-local socket = require("socket");
-
 local function CheckTTS()
     SRS_Path = os.getenv("SRS_PATH");
     if not SRS_Path then
         env.error("[23rd]: Could not find environmant variable SRS_PATH, TTS disabled.");
         return;
     end
+
+    package.path  = package.path..";"..lfs.currentdir().."/LuaSocket/?.lua"
+    package.cpath = package.cpath..";"..lfs.currentdir().."/LuaSocket/?.dll"
+    package.path  = package.path..";"..lfs.currentdir().."/Scripts/?.lua"
+    local socket = require("socket");
 
     local data, err = socket.connect("127.0.0.1", STTS.SRS_PORT);
     if err then
