@@ -49,9 +49,9 @@ function KillTracker:OnEventKill(EventData)
         local c = EventData.TgtCoalition;
 
         if c == coalition.side.RED then
-            Inc(self.RedFlag);
-        elseif c == coalition.side.BLUE then
             Inc(self.BlueFlag);
+        elseif c == coalition.side.BLUE then
+            Inc(self.RedFlag);
         end
 
         env.info("[KillTracker]: RED: "..Get(self.RedFlag)..", BLUE: "..Get(self.BlueFlag));
@@ -62,10 +62,10 @@ function KillTracker:OnEventKill(EventData)
     end
 end
 
---- Tracks kill for each coalition and increases a cloaition flag by 1 for
+--- Tracks kills for each coalition and increases a cloaition flag by 1 for
 --- every kill.
--- @param blueFlag - The flag of the blue coalition to increment if a blue unit has been killed.
--- @param redFlag - The flag of the red coalition to increment if a red unit has been killed.
+-- @param blueFlag - The flag of the blue coalition to increment if a red unit has been killed.
+-- @param redFlag - The flag of the red coalition to increment if a blue unit has been killed.
 -- @param messageFlag - Controls if actual score is displayed as a message. 1 - on, 0 - off.
 -- Example:
 --
