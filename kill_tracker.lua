@@ -39,7 +39,13 @@ function KillTracker:OnEventKill(EventData)
         return;
     end
 
-    if EventData.TgtUnit then
+    if EventData.TgtCategory and EventData.TgtCoalition then
+
+        local category = EventData.TgtCategory;
+        if not category == Unit.Category.AIRPLANE and not category == Unit.Category.HELICOPTER then
+            return;
+        end
+
         local c = EventData.TgtCoalition;
 
         if c == coalition.side.RED then
