@@ -35,14 +35,18 @@ function KillTracker:OnEventKill(EventData)
         end
     end
 
-    if not EventData.IniObjectCategory == Object.Category.UNIT then
+    -- env.info("[KillTracker]: TgtObjectCategory " .. tostring(EventData.TgtObjectCategory));
+
+    if EventData.TgtObjectCategory ~= Object.Category.UNIT then
         return;
     end
 
     if EventData.TgtCategory and EventData.TgtCoalition then
 
         local category = EventData.TgtCategory;
-        if not category == Unit.Category.AIRPLANE and not category == Unit.Category.HELICOPTER then
+        -- env.info("[KillTracker]: TgtCategory " .. tostring(category));
+
+        if category ~= Unit.Category.AIRPLANE and category ~= Unit.Category.HELICOPTER then
             return;
         end
 
